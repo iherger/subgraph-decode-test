@@ -1,0 +1,32 @@
+specVersion: 0.0.1
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: ExternalPositionManager
+    network: mainnet
+    source:
+      address: "0x1e3da40f999cf47091f869ebac477d84b0827cf4"
+      abi: ExternalPositionManager
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.5
+      language: wasm/assemblyscript
+      entities:
+        - CallOnExternalPositionExecutedForFund
+        - ExternalPositionDeployedForFund
+        - ExternalPositionTypeInfoUpdated
+        - ValidatedVaultProxySetForFund
+      abis:
+        - name: ExternalPositionManager
+          file: ./abis/ExternalPositionManager.json
+      eventHandlers:
+        - event: CallOnExternalPositionExecutedForFund(indexed address,indexed address,indexed address,uint256,bytes,address[],uint256[],address[])
+          handler: handleCallOnExternalPositionExecutedForFund
+        - event: ExternalPositionDeployedForFund(indexed address,indexed address,address,indexed uint256,bytes)
+          handler: handleExternalPositionDeployedForFund
+        - event: ExternalPositionTypeInfoUpdated(indexed uint256,address,address)
+          handler: handleExternalPositionTypeInfoUpdated
+        - event: ValidatedVaultProxySetForFund(indexed address,indexed address)
+          handler: handleValidatedVaultProxySetForFund
+      file: ./src/mapping.ts
