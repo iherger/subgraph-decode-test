@@ -1,61 +1,103 @@
-import { BigInt } from "@graphprotocol/graph-ts"
 import {
-  ExternalPositionManager,
+  Address,
+  ByteArray,
+  Bytes,
+  ethereum,
+  log,
+  BigInt,
+} from "@graphprotocol/graph-ts";
+import {
   CallOnExternalPositionExecutedForFund,
   ExternalPositionDeployedForFund,
   ExternalPositionTypeInfoUpdated,
-  ValidatedVaultProxySetForFund
-} from "../generated/ExternalPositionManager/ExternalPositionManager"
-import { ExampleEntity } from "../generated/schema"
+  ValidatedVaultProxySetForFund,
+} from "../generated/ExternalPositionManager/ExternalPositionManager";
 
 export function handleCallOnExternalPositionExecutedForFund(
   event: CallOnExternalPositionExecutedForFund
 ): void {
-  // Entities can be loaded from the store using a string ID; this ID
-  // needs to be unique across all entities of the same type
-  let entity = ExampleEntity.load(event.transaction.from.toHex())
-
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (!entity) {
-    entity = new ExampleEntity(event.transaction.from.toHex())
-
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
+  if (
+    event.params.externalPosition.notEqual(
+      Address.fromString("0xc6e0c8f5aae2791b563b4a1e2c23efea38d79d94")
+    )
+  ) {
+    return;
   }
 
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
+  log.warning("actionId: {}, actionArgs: {}", [
+    event.params.actionId.toString(),
+    event.params.actionArgs.toHex(),
+  ]);
 
-  // Entity fields can be set based on event parameters
-  entity.caller = event.params.caller
-  entity.comptrollerProxy = event.params.comptrollerProxy
+  if (event.params.actionId.toI32() == 3) {
+    let decoded = ethereum.decode(
+      "(uint16,bytes32,uint16,uint256)",
+      event.params.actionArgs
+    );
 
-  // Entities can be written to the store with `.save()`
-  entity.save()
+    if (decoded == null) {
+      log.warning("Unable to decode actionArgs", []);
+      return;
+    }
 
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
+    let tuple = decoded.toTuple();
+    let borrowedCurrencyId = tuple[0].toI32();
+    let encodedBorrowTrade = tuple[1].toBytes();
+    let collateralCurrencyId = tuple[2].toI32();
+    let collateralAssetAmount = tuple[3].toBigInt();
 
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // - contract.getExternalPositionFactory(...)
-  // - contract.getExternalPositionLibForType(...)
-  // - contract.getExternalPositionParserForType(...)
-  // - contract.getFundDeployer(...)
-  // - contract.getOwner(...)
-  // - contract.getPolicyManager(...)
-  // - contract.getVaultProxyForFund(...)
+    log.warning(
+      "borrowedCurrencyId {}, encodedBorrowTrade {}, collateralCurrencyId {}, collateralAssetAmount {}",
+      [
+        borrowedCurrencyId.toString(),
+        encodedBorrowTrade.toHex(),
+        collateralCurrencyId.toString(),
+        collateralAssetAmount.toString(),
+      ]
+    );
+
+    let array = new Uint8Array(1 + 1 + 11 + 4 + 15);
+    array.set(encodedBorrowTrade);
+
+    let backAndForth = Bytes.fromUint8Array(array);
+
+    let marketIndexSlice = array.subarray(1, 2);
+    let marketIndexBytes = Bytes.fromUint8Array(marketIndexSlice.reverse());
+    let marketIndex = BigInt.fromUnsignedBytes(marketIndexBytes);
+
+    let fCashAmountSlice = array.subarray(2, 13);
+    let fCashAmountBytes = Bytes.fromUint8Array(fCashAmountSlice.reverse());
+    let fCashAmount = BigInt.fromUnsignedBytes(fCashAmountBytes);
+
+    // let decodedBorrowTrade = ethereum.decode(
+    //   "(uint8,uint8,uint88,uint32,uint120)",
+    //   encodedBorrowTrade
+    // );
+
+    // if (decodedBorrowTrade == null) {
+    //   log.warning("Unable to decode encodedBorrowTrade", []);
+    //   return;
+    // }
+
+    // let borrowTradeTuple = decodedBorrowTrade.toTuple();
+    // let marketIndex = borrowTradeTuple[1].toI32();
+    // let fCashAmount = borrowTradeTuple[2].toBigInt();
+
+    log.warning(
+      "array {}, length {}, backAndForth {}, marketIndexSlice {}, marketIndexBytes {}, marketIndex {}, fCashAmountSlice{}, fCashAmountBytes {}, fCashAmount {}",
+      [
+        array.toString(),
+        array.length.toString(),
+        backAndForth.toHex(),
+        marketIndexSlice.toString(),
+        marketIndexBytes.toHex(),
+        marketIndex.toString(),
+        fCashAmountSlice.toString(),
+        fCashAmountBytes.toHex(),
+        fCashAmount.toString(),
+      ]
+    );
+  }
 }
 
 export function handleExternalPositionDeployedForFund(
@@ -69,3 +111,21 @@ export function handleExternalPositionTypeInfoUpdated(
 export function handleValidatedVaultProxySetForFund(
   event: ValidatedVaultProxySetForFund
 ): void {}
+
+// Adapted from https://ethereum.stackexchange.com/questions/114582/the-graph-nodes-cant-decode-abi-encoded-data-containing-arrays
+function tuplePrefixBytes(input: Bytes): Bytes {
+  let inputTypedArray = input.subarray(0);
+
+  let tuplePrefix = ByteArray.fromHexString(
+    "0x0000000000000000000000000000000000000000000000000000000000000020"
+  );
+
+  let inputAsTuple = new Uint8Array(
+    tuplePrefix.length + inputTypedArray.length
+  );
+
+  inputAsTuple.set(tuplePrefix, 0);
+  inputAsTuple.set(inputTypedArray, tuplePrefix.length);
+
+  return Bytes.fromUint8Array(inputAsTuple);
+}

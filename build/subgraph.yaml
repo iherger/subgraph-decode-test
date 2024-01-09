@@ -1,6 +1,6 @@
 specVersion: 0.0.4
 schema:
-  file: ./schema.graphql
+  file: schema.graphql
 dataSources:
   - kind: ethereum
     name: ExternalPositionManager
@@ -20,14 +20,16 @@ dataSources:
         - ValidatedVaultProxySetForFund
       abis:
         - name: ExternalPositionManager
-          file: ./abis/ExternalPositionManager.json
+          file: ExternalPositionManager/abis/ExternalPositionManager.json
       eventHandlers:
-        - event: CallOnExternalPositionExecutedForFund(indexed address,indexed address,indexed address,uint256,bytes,address[],uint256[],address[])
+        - event: CallOnExternalPositionExecutedForFund(indexed address,indexed address,indexed
+            address,uint256,bytes,address[],uint256[],address[])
           handler: handleCallOnExternalPositionExecutedForFund
-        - event: ExternalPositionDeployedForFund(indexed address,indexed address,address,indexed uint256,bytes)
+        - event: ExternalPositionDeployedForFund(indexed address,indexed address,address,indexed
+            uint256,bytes)
           handler: handleExternalPositionDeployedForFund
         - event: ExternalPositionTypeInfoUpdated(indexed uint256,address,address)
           handler: handleExternalPositionTypeInfoUpdated
         - event: ValidatedVaultProxySetForFund(indexed address,indexed address)
           handler: handleValidatedVaultProxySetForFund
-      file: ./src/mapping.ts
+      file: ExternalPositionManager/ExternalPositionManager.wasm
